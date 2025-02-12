@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "target": "ES6",
+    "module": "CommonJS",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "outDir": "./dist",   
+    "baseUrl": "./",      
+    "paths": {
+      "*": ["node_modules/*", "src/types/*"]  
+    },
+    "typeRoots": [
+      "node_modules/@types",  // Verifique se os tipos globais são corretamente importados
+      "src/types"  // Onde você deve ter seus tipos personalizados, como 'custom.d.ts'
+    ]
+  },
+  "include": [
+    "src/**/*.ts",        
+    "src/custom.d.ts"     
+  ],
+  "exclude": [
+    "node_modules",       
+    "dist"                
+  ]
+}
