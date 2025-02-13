@@ -1,0 +1,6 @@
+# Ignorar uma pasta específica
+backend/uploads/
+backend/node_modules
+frontend/node_modules
+# Ignorar um arquivo específico
+backend/.env
