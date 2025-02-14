@@ -7,6 +7,7 @@ import multer from "multer"; // Importa o Multer para upload de arquivos
 import cors from "cors";
 import fs from "fs"; // Para garantir que a pasta de uploads existe
 import { error } from "console";
+import path from "path";
 
 dotenv.config();
 
@@ -30,11 +31,13 @@ function generateToken(payload: object): string {
 app.use(express.json());
 // Configurar o CORS
 app.use(cors({
-  origin: 'http://localhost:3001',  // Permite requisições apenas de http://localhost:3000
+  origin: 'http://localhost:3000',  // Permite requisições apenas de http://localhost:3000
   methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH'], // Permite os métodos HTTP específicos
   allowedHeaders: ['Content-Type', 'Authorization'], // Permite os cabeçalhos específicos
 }));
-
+// Servir arquivos estáticos
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+console.log('Caminho da pasta uploads:', path.join(__dirname, 'uploads'));
 // Configuração do Multer para armazenar arquivos localmente
 const storage = multer.diskStorage({
   destination: (req: any, file: any, cb: (arg0: null, arg1: string) => void) => {

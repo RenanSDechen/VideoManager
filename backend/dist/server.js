@@ -20,6 +20,7 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const multer_1 = __importDefault(require("multer")); // Importa o Multer para upload de arquivos
 const cors_1 = __importDefault(require("cors"));
 const fs_1 = __importDefault(require("fs")); // Para garantir que a pasta de uploads existe
+const path_1 = __importDefault(require("path"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 const prisma = new client_1.PrismaClient();
@@ -38,10 +39,13 @@ function generateToken(payload) {
 app.use(express_1.default.json());
 // Configurar o CORS
 app.use((0, cors_1.default)({
-    origin: 'http://localhost:3001', // Permite requisições apenas de http://localhost:3000
+    origin: 'http://localhost:3000', // Permite requisições apenas de http://localhost:3000
     methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH'], // Permite os métodos HTTP específicos
     allowedHeaders: ['Content-Type', 'Authorization'], // Permite os cabeçalhos específicos
 }));
+// Servir arquivos estáticos
+app.use('/uploads', express_1.default.static(path_1.default.join(__dirname, '../uploads')));
+console.log('Caminho da pasta uploads:', path_1.default.join(__dirname, 'uploads'));
 // Configuração do Multer para armazenar arquivos localmente
 const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
@@ -80,55 +84,7 @@ const checkRole = (roles) => {
         next();
     };
 };
-app.post("/api/register", authenticateJWT, checkRole(["admin", "superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    console.log("api/register acionada");
-    try {
-        const { username, password } = req.body;
-        // Verificar se todos os campos foram fornecidos
-        if (!username || !password) {
-            console.log(username, password);
-            return res.status(400).json({ error: "Todos os campos são obrigatórios." });
-        }
-        // Verificar se o nome de usuário já está em uso
-        const existingUser = yield prisma.user.findUnique({
-            where: { username },
-        });
-        if (existingUser) {
-            return res.status(409).json({ error: "O nome de usuário já está em uso." });
-        }
-        // Hash da senha
-        const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
-        // Criar o usuário no banco de dados
-        const user = yield prisma.user.create({
-            data: {
-                username,
-                password: hashedPassword,
-            },
-        });
-        // Retornar sucesso
-        res.status(201).json({
-            message: "Usuário registrado com sucesso.",
-            user: { id: user.id, username: user.username }, // Enviar apenas informações públicas
-        });
-    }
-    catch (error) {
-        console.error("Erro ao registrar usuário:", error);
-        res.status(500).json({ error: "Erro interno do servidor. Por favor, tente novamente mais tarde." });
-    }
-}));
-// User login
-app.post("/api/login", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { username, password } = req.body;
-    const user = yield prisma.user.findUnique({
-        where: { username },
-    });
-    if (!user || !bcryptjs_1.default.compareSync(password, user.password)) {
-        return res.status(400).send("Invalid credentials");
-    }
-    const token = generateToken({ id: user.id, role: user.role });
-    res.json({ token });
-}));
-// Video CRUD Operations
+//rotas videos----------------------------------------------------------------------------------
 app.get("/api/videos", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const videos = yield prisma.video.findMany({
@@ -195,105 +151,8 @@ app.delete("/api/videos/:id", authenticateJWT, checkRole(["admin", "superadmin"]
     });
     res.json(video);
 }));
-app.put("/api/user/:id", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { username, email, role } = req.body;
-        const id = parseInt(req.params.id);
-        if (!username || !email) {
-            return res.status(400).json({ error: "Username e email são obrigatórios." });
-        }
-        const userExists = yield prisma.user.findUnique({ where: { id } });
-        if (!userExists) {
-            return res.status(404).json({ error: "Usuário não encontrado." });
-        }
-        const updatedUser = yield prisma.user.update({
-            where: { id },
-            data: { username, email, role }
-        });
-        res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
-    }
-    catch (error) {
-        console.error("Erro ao atualizar usuário:", error);
-        res.status(500).json({ error: "Erro interno ao atualizar usuário." });
-    }
-}));
-app.delete("/api/user/:id", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const id = parseInt(req.params.id);
-        if (isNaN(id)) {
-            return res
-                .status(400)
-                .json({ error: "O parâmetro 'id' deve ser um número válido." });
-        }
-        const user = yield prisma.user.findUnique({
-            where: { id },
-        });
-        if (!user) {
-            return res.status(404).json({ error: "Usuário não encontrado" });
-        }
-        if (user.role === "superadmin") {
-            return res
-                .status(403)
-                .json({ error: "Não é permitido deletar um super usuário" });
-        }
-        const deleteUser = yield prisma.user.delete({
-            where: { id },
-        });
-        return res.json({
-            message: "Usuário deletado com sucesso.",
-            user: deleteUser,
-        });
-    }
-    catch (error) {
-        console.error("Erro ao deletar usuário:", error);
-        return res
-            .status(500)
-            .json({ error: "Ocorreu um erro interno ao deletar o usuário." });
-    }
-}));
-// Rota para pegar informações do usuário logado
-app.get("/api/user", authenticateJWT, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id; // O ID do usuário autenticado extraído do token JWT
-    console.log("rota acionada user :" + userId);
-    try {
-        const user = yield prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                id: true,
-                username: true,
-                role: true
-            },
-        });
-        if (!user) {
-            return res.status(404).json({ error: "Usuário não encontrado" });
-        }
-        res.json(user);
-    }
-    catch (error) {
-        console.error("Erro ao buscar usuário:", error);
-        res.status(500).json({ error: "Erro interno do servidor" });
-    }
-}));
-//admin endpoints
-app.get("/api/users", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const users = yield prisma.user.findMany({
-            select: {
-                id: true,
-                username: true,
-                email: true,
-                role: true,
-            },
-        });
-        res.json(users);
-    }
-    catch (error) {
-        console.error("Erro ao listar usuários:", error);
-        res.status(500).json({ error: "Erro ao listar usuários." });
-    }
-}));
-app.get("/api/tags", authenticateJWT, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+//rotas privadas tags----------------------------------------------------------------------------------
+app.get("/api/tags", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const tags = yield prisma.tag.findMany({
             select: {
@@ -386,6 +245,153 @@ app.post("/api/tag", authenticateJWT, checkRole(["admin", "superadmin"]), (req, 
     catch (error) {
         console.error("Erro ao registrar tag:", error);
         res.status(500).json({ error: "Erro interno do servidor. Por favor, tente novamente mais tarde." });
+    }
+}));
+//rotas login e register----------------------------------------------------------------------------------
+app.post("/api/register", authenticateJWT, checkRole(["admin", "superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log("api/register acionada");
+    try {
+        const { username, password } = req.body;
+        // Verificar se todos os campos foram fornecidos
+        if (!username || !password) {
+            console.log(username, password);
+            return res.status(400).json({ error: "Todos os campos são obrigatórios." });
+        }
+        // Verificar se o nome de usuário já está em uso
+        const existingUser = yield prisma.user.findUnique({
+            where: { username },
+        });
+        if (existingUser) {
+            return res.status(409).json({ error: "O nome de usuário já está em uso." });
+        }
+        // Hash da senha
+        const hashedPassword = yield bcryptjs_1.default.hash(password, 10);
+        // Criar o usuário no banco de dados
+        const user = yield prisma.user.create({
+            data: {
+                username,
+                password: hashedPassword,
+            },
+        });
+        // Retornar sucesso
+        res.status(201).json({
+            message: "Usuário registrado com sucesso.",
+            user: { id: user.id, username: user.username }, // Enviar apenas informações públicas
+        });
+    }
+    catch (error) {
+        console.error("Erro ao registrar usuário:", error);
+        res.status(500).json({ error: "Erro interno do servidor. Por favor, tente novamente mais tarde." });
+    }
+}));
+// User login
+app.post("/api/login", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { username, password } = req.body;
+    const user = yield prisma.user.findUnique({
+        where: { username },
+    });
+    if (!user || !bcryptjs_1.default.compareSync(password, user.password)) {
+        return res.status(400).send("Invalid credentials");
+    }
+    const token = generateToken({ id: user.id, role: user.role });
+    res.json({ token });
+}));
+//rotas user----------------------------------------------------------------------------------
+app.put("/api/user/:id", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { username, email, role } = req.body;
+        const id = parseInt(req.params.id);
+        if (!username || !email) {
+            return res.status(400).json({ error: "Username e email são obrigatórios." });
+        }
+        const userExists = yield prisma.user.findUnique({ where: { id } });
+        if (!userExists) {
+            return res.status(404).json({ error: "Usuário não encontrado." });
+        }
+        const updatedUser = yield prisma.user.update({
+            where: { id },
+            data: { username, email, role }
+        });
+        res.json({ message: "Usuário atualizado com sucesso!", user: updatedUser });
+    }
+    catch (error) {
+        console.error("Erro ao atualizar usuário:", error);
+        res.status(500).json({ error: "Erro interno ao atualizar usuário." });
+    }
+}));
+app.delete("/api/user/:id", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) {
+            return res
+                .status(400)
+                .json({ error: "O parâmetro 'id' deve ser um número válido." });
+        }
+        const user = yield prisma.user.findUnique({
+            where: { id },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "Usuário não encontrado" });
+        }
+        if (user.role === "superadmin") {
+            return res
+                .status(403)
+                .json({ error: "Não é permitido deletar um super usuário" });
+        }
+        const deleteUser = yield prisma.user.delete({
+            where: { id },
+        });
+        return res.json({
+            message: "Usuário deletado com sucesso.",
+            user: deleteUser,
+        });
+    }
+    catch (error) {
+        console.error("Erro ao deletar usuário:", error);
+        return res
+            .status(500)
+            .json({ error: "Ocorreu um erro interno ao deletar o usuário." });
+    }
+}));
+app.get("/api/user", authenticateJWT, (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const userId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id; // O ID do usuário autenticado extraído do token JWT
+    console.log("rota acionada user :" + userId);
+    try {
+        const user = yield prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                role: true
+            },
+        });
+        if (!user) {
+            return res.status(404).json({ error: "Usuário não encontrado" });
+        }
+        res.json(user);
+    }
+    catch (error) {
+        console.error("Erro ao buscar usuário:", error);
+        res.status(500).json({ error: "Erro interno do servidor" });
+    }
+}));
+//admin endpoints
+app.get("/api/users", authenticateJWT, checkRole(["superadmin"]), (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const users = yield prisma.user.findMany({
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                role: true,
+            },
+        });
+        res.json(users);
+    }
+    catch (error) {
+        console.error("Erro ao listar usuários:", error);
+        res.status(500).json({ error: "Erro ao listar usuários." });
     }
 }));
 // Start server
